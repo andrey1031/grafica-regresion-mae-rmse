@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Laboratorio interactivo: Maldición de la dimensionalidad</title>
+<style>
+:root{--teal:#07545b;--teal2:#0b6b70;--orange:#e47d61;--blue:#1686c4;--green:#36a47b;--bg:#f3f7f7;--ink:#17383b;--muted:#61777a;--line:#d7e3e3}
+*{box-sizing:border-box}body{margin:0;padding:20px;background:var(--bg);font-family:Arial,Helvetica,sans-serif;color:var(--ink)}
+.wrap{max-width:900px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 8px 28px #1233}
+header{background:var(--teal);color:#fff;padding:21px 25px}h1{font-size:clamp(21px,3vw,28px);margin:0}header p{margin:7px 0 0;color:#d9eeee;line-height:1.4}
+main{padding:20px}.intro{line-height:1.5;margin:0 0 15px}
+.controls{display:flex;gap:13px;align-items:center;flex-wrap:wrap;padding:13px;border:1px solid var(--line);border-radius:12px;background:#f8fbfb}
+.control{flex:1;min-width:210px}.control label{font-size:13px;font-weight:bold;display:flex;justify-content:space-between;gap:10px}
+input[type=range]{width:100%;accent-color:var(--teal2);margin:11px 0 2px}
+button{border:0;border-radius:9px;padding:11px 15px;font-weight:bold;cursor:pointer}
+.primary{background:var(--orange);color:white}.secondary{background:#eaf1f1;color:var(--teal);border:1px solid var(--line)}
+.panel{border:1px solid var(--line);border-radius:13px;padding:12px;margin-top:15px;background:#fff}
+.panel h2{font-size:18px;color:var(--teal);margin:3px 4px 5px}
+.sub{font-size:13px;color:var(--muted);margin:0 4px 9px;line-height:1.4}
+canvas{display:block;width:100%;height:auto;border-radius:9px;background:#f7fafb}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:10px 3px 0}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+.dimension-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.dimension-list span{font-size:11px;padding:4px 7px;border-radius:6px;background:#e8f0f0;color:#426266}
+.dimension-list span.extra{background:#fff0e9;color:#a45137}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:13px}
+.stat{border:1px solid var(--line);border-radius:10px;padding:11px;background:#f8fbfb}
+.stat small{display:block;color:var(--muted);font-size:11px}.stat b{display:block;color:var(--teal);font-size:20px;margin-top:4px}
+.explain{margin-top:14px;padding:14px;border-radius:12px;background:#edf5f4;border-left:5px solid var(--teal2);line-height:1.5}
+.note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:12px}
+@media(max-width:600px){body{padding:8px}main{padding:13px}.control{min-width:100%}.stats{grid-template-columns:1fr 1fr}}
+</style></head>
+<body><div class="wrap">
+<header><h1>Laboratorio interactivo: Maldición de la dimensionalidad</h1><p>Observa cómo una nube de datos pasa de una vista 3D a una proyección 2D.</p></header>
+<main>
+<p class="intro">Ajusta el número de atributos y pulsa «Proyectar a 2D». Los mismos puntos se desplazarán dentro de una única gráfica para mostrar la transformación. Puedes volver a la vista 3D cuando quieras.</p>
+<div class="controls">
+ <div class="control"><label for="dims"><span>Número de dimensiones del conjunto</span><strong id="dimval">8 atributos</strong></label><input id="dims" type="range" min="3" max="20" value="8" step="1"><div class="dimension-list" id="dimension-list"></div></div>
+ <button class="primary" id="project">▶ Proyectar a 2D</button>
+ <button class="secondary" id="reset">Restablecer</button>
+</div>
+<section class="panel">
+ <h2 id="viewtitle">Vista 3D: espacio de alta dimensionalidad</h2>
+ <p class="sub" id="viewsub">Se muestran tres atributos seleccionados del conjunto completo. Los demás atributos no pueden visualizarse directamente en estos tres ejes.</p>
+ <canvas id="plot" width="820" height="470" aria-label="Gráfica interactiva única: los puntos se transforman de una vista tridimensional a una proyección bidimensional"></canvas>
+ <div class="legend"><span><i class="dot" style="background:#1686c4"></i>Grupo A</span><span><i class="dot" style="background:#e47d61"></i>Grupo B</span><span><i class="dot" style="background:#36a47b"></i>Grupo C</span></div>
+</section>
+<div class="stats">
+ <div class="stat"><small>Atributos del conjunto</small><b id="statdims">8</b></div>
+ <div class="stat"><small>Ejes visibles en 3D</small><b>3</b></div>
+ <div class="stat"><small>Componentes en 2D</small><b>2</b></div>
+</div>
+<div class="explain" aria-live="polite"><b id="exptitle">¿Qué debes observar?</b><div id="explanation">La vista 3D solo permite observar tres atributos a la vez. Los demás forman parte del conjunto, aunque no aparezcan como ejes en esta representación.</div></div>
+<p class="note"><b>Nota metodológica:</b> datos simulados con fines didácticos. La animación desplaza los mismos puntos desde una representación 3D hacia una proyección 2D esquemática; no ejecuta un algoritmo PCA real. En un análisis real, PCA calcula las componentes a partir de los datos. La proyección facilita la visualización, pero puede perder información.</p>
+</main></div>
+<script>
+(()=>{
+const canvas=document.getElementById('plot'),ctx=canvas.getContext('2d');
+const colors=['#1686c4','#e47d61','#36a47b'];
+let dims=8,flat=0,raf=null;
+let seed=92831;function rand(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}
+function gauss(){return Math.sqrt(-2*Math.log(Math.max(rand(),1e-8)))*Math.cos(2*Math.PI*rand())}
+const points=[];
+for(let i=0;i<90;i++){let group=i%3,cx=[-.68,.68,0][group],cy=[-.36,-.28,.7][group],u=cx+gauss()*.23,v=cy+gauss()*.23,w=(u+v)*.45+gauss()*.28;points.push({u,v,w,group})}
+function map3(p){let rot=.48,ax=p.u*Math.cos(rot)-p.v*Math.sin(rot),by=p.u*Math.sin(rot)+p.v*Math.cos(rot),zz=p.w*Math.cos(.45)-by*Math.sin(.45),yy=p.w*Math.sin(.45)+by*Math.cos(.45),k=1/(1.9-zz*.22);return{x:410+ax*190*k,y:220-yy*175*k}}
+function map2(p){return{x:105+(p.u+1.35)/2.7*610,y:385-(p.v+1.2)/2.4*300}}
+function mix(a,b,t){return a+(b-a)*t}
+function line(x1,y1,x2,y2,color='#82999c',width=1.5,dash=[]){ctx.beginPath();ctx.setLineDash(dash);ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();ctx.setLineDash([])}
+function draw(t=flat){
+ ctx.clearRect(0,0,820,470);ctx.fillStyle='#f7fafb';ctx.fillRect(0,0,820,470);
+ if(t<.98){
+  let o={x:410,y:220};[[1.45,0,0,'Atributo 1'],[0,1.45,0,'Atributo 2'],[0,0,1.45,'Atributo 3']].forEach(([x,y,z,label])=>{let q=map3({u:x,v:y,w:z});line(o.x,o.y,q.x,q.y,'#82999c',2);ctx.fillStyle='#47666a';ctx.font='15px Arial';ctx.fillText(label,q.x+(x>0?7:-15),q.y+(y>0?17:-8))});
+ }
+ if(t>.02){
+  ctx.globalAlpha=t;let l=105,r=715,top=85,b=385;ctx.strokeStyle='#d7e3e3';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){let x=l+(r-l)*i/4,y=top+(b-top)*i/4;line(x,top,x,b,'#d7e3e3',1);line(l,y,r,y,'#d7e3e3',1)}
+  line(l,b,r,b,'#82999c',1.5);line(l,top,l,b,'#82999c',1.5);
+  ctx.fillStyle='#47666a';ctx.font='14px Arial';ctx.fillText('Componente 1',370,425);ctx.save();ctx.translate(45,260);ctx.rotate(-Math.PI/2);ctx.fillText('Componente 2',0,0);ctx.restore();ctx.globalAlpha=1;
+ }
+ points.forEach(p=>{let a=map3(p),b=map2(p),x=mix(a.x,b.x,t),y=mix(a.y,b.y,t);ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);ctx.fillStyle=colors[p.group];ctx.globalAlpha=.88;ctx.fill();ctx.globalAlpha=1});
+ ctx.fillStyle='#61777a';ctx.font='13px Arial';ctx.fillText(t>.5?'Proyección bidimensional · dos componentes':'Vista tridimensional · tres atributos seleccionados',18,448);
+ if(t>.5){ctx.fillStyle='#07545b';ctx.font='bold 15px Arial';ctx.fillText('PROYECCIÓN 2D',650,35)}
+}
+function dimensions(){document.getElementById('dimval').textContent=dims+' atributos';document.getElementById('statdims').textContent=dims;let list=document.getElementById('dimension-list');list.replaceChildren();for(let i=1;i<=dims;i++){let s=document.createElement('span');s.textContent='A'+i;if(i>3)s.className='extra';list.append(s)}}
+function explain(){let projected=flat>.5;document.getElementById('viewtitle').textContent=projected?'Vista 2D: proyección de los datos':'Vista 3D: espacio de alta dimensionalidad';document.getElementById('viewsub').textContent=projected?'Los mismos puntos se representan mediante dos componentes para facilitar la observación de agrupaciones.':'Se muestran tres atributos seleccionados del conjunto completo. Los demás atributos no pueden visualizarse directamente en estos tres ejes.';document.getElementById('exptitle').textContent=projected?'¿Qué ocurrió con los puntos?':'¿Qué debes observar?';document.getElementById('explanation').textContent=projected?`Los mismos puntos se desplazaron hacia una representación con dos componentes. Esto facilita observar agrupaciones, pero resume la información: no todos los detalles de los ${dims} atributos originales pueden conservarse en dos dimensiones.`:`El conjunto contiene ${dims} atributos. La vista tridimensional solo permite visualizar tres de ellos como ejes; los ${Math.max(0,dims-3)} restantes no aparecen directamente en esta representación. Al aumentar las dimensiones, el espacio de análisis se vuelve más complejo.`}
+function animate(to){if(raf)cancelAnimationFrame(raf);let from=flat,start=null;function step(ts){if(!start)start=ts;let k=Math.min(1,(ts-start)/1300),ease=k*k*(3-2*k);flat=mix(from,to,ease);draw();if(k<1)raf=requestAnimationFrame(step);else{flat=to;raf=null;explain()}}raf=requestAnimationFrame(step)}
+document.getElementById('dims').addEventListener('input',e=>{dims=Number(e.target.value);dimensions();explain()});
+document.getElementById('project').addEventListener('click',()=>{let to=flat<.5?1:0;document.getElementById('project').textContent=to?'↩ Volver a vista 3D':'▶ Proyectar a 2D';animate(to)});
+document.getElementById('reset').addEventListener('click',()=>{dims=8;flat=0;document.getElementById('dims').value=8;document.getElementById('project').textContent='▶ Proyectar a 2D';dimensions();explain();draw()});
+dimensions();explain();draw();
+})();
+</script></body></html>
