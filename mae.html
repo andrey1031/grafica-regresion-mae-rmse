@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Laboratorio interactivo: MAE</title>
+<style>
+:root{--teal:#07545b;--orange:#e47d61;--blue:#1686c4;--bg:#f3f7f7;--ink:#17383b;--muted:#61777a;--line:#d7e3e3}
+*{box-sizing:border-box}body{margin:0;padding:22px;background:var(--bg);font-family:Arial,sans-serif;color:var(--ink)}
+.wrap{max-width:960px;margin:auto;background:white;border-radius:18px;overflow:hidden;box-shadow:0 8px 28px #1234}
+header{background:var(--teal);color:white;padding:21px 25px}h1{font-size:clamp(21px,3vw,28px);margin:0}header p{margin:7px 0 0;color:#d9eeee}
+main{padding:21px}.intro{line-height:1.5;margin:0 0 16px}.metric,.item{padding:14px;border:1px solid var(--line);border-radius:12px;background:#f8fbfb}
+.metric{margin-bottom:15px}.metric small,.item small{display:block;color:var(--muted)}.metric strong{display:block;font-size:32px;color:var(--teal);margin:5px 0}
+.controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.itemtop{display:flex;justify-content:space-between;gap:8px;font-size:14px;font-weight:bold}
+input[type=range]{width:100%;accent-color:#0b6b70;margin:12px 0 3px;cursor:pointer}
+.chartbox{border:1px solid var(--line);border-radius:13px;padding:12px;margin-top:15px}.charttitle{font-weight:bold;margin:2px 5px 8px}
+svg{width:100%;height:auto;display:block}svg text{font-size:12px;fill:#61777a}.bar{fill:var(--blue)}.meanline{stroke:var(--orange);stroke-width:2.5;stroke-dasharray:7 5}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin:14px 0}button{border:0;border-radius:9px;padding:11px 15px;font-weight:bold;cursor:pointer}
+.primary{background:var(--orange);color:white}.secondary{background:#eaf1f1;color:var(--teal);border:1px solid var(--line)}
+.explain{margin-top:14px;padding:14px;border-radius:12px;background:#edf5f4;border-left:5px solid #0b6b70;line-height:1.5}.note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:13px}
+@media(max-width:620px){body{padding:8px}main{padding:13px}.controls{grid-template-columns:1fr}.metric strong{font-size:27px}}
+</style></head><body><div class="wrap">
+<header><h1>Laboratorio interactivo: MAE</h1><p>Comprende cómo se calcula el Error Absoluto Medio</p></header>
+<main><p class="intro">Modifica las predicciones con los controles. Observa cómo cambia el error absoluto de cada observación y cómo se actualiza el MAE. Puedes aumentar o disminuir una predicción para comprobar que importa la magnitud del error, no su signo.</p>
+<div class="metric"><small>MAE · Error absoluto medio</small><strong id="mae">2,40 unidades</strong><small id="sum">Suma de errores absolutos: 12,00 ÷ 5 observaciones</small></div>
+<div class="controls" id="controls"></div>
+<div class="chartbox"><div class="charttitle">Errores absolutos por observación</div><svg id="chart" viewBox="0 0 720 300" role="img" aria-label="Gráfica de barras dinámica de errores absolutos y línea del MAE"></svg>
+<div style="font-size:12px;color:#61777a;padding:5px 6px">La línea naranja indica el promedio (MAE). Las barras muestran el error absoluto de cada predicción.</div></div>
+<div class="actions"><button class="primary" id="increase">+ Aumentar un error</button><button class="secondary" id="reset">Restablecer ejemplo</button></div>
+<div class="explain" aria-live="polite"><b>¿Qué significa el resultado?</b><div id="interpretation">El MAE es el promedio de las distancias absolutas entre los valores reales y predichos.</div></div>
+<p class="note">Ejemplo simulado. Los valores reales permanecen fijos y puedes modificar las predicciones. El MAE se expresa en las mismas unidades de la variable estudiada.</p>
+</main></div>
+<script>
+(()=>{
+const actual=[10,15,20,25,30],initial=[12,12,21,29,28];let predicted=initial.slice();
+const controls=document.getElementById('controls'),svg=document.getElementById('chart'),NS='http://www.w3.org/2000/svg';
+const fmt=n=>n.toFixed(2).replace('.',',');
+function node(tag,attrs,parent=svg){let n=document.createElementNS(NS,tag);Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,v));parent.appendChild(n);return n}
+function errors(){return actual.map((v,i)=>Math.abs(v-predicted[i]))}
+function build(){controls.replaceChildren();actual.forEach((v,i)=>{
+ let box=document.createElement('div');box.className='item';let top=document.createElement('div');top.className='itemtop';
+ let name=document.createElement('span');name.textContent=`Observación ${i+1}`;let err=document.createElement('span');err.id=`err-${i}`;err.textContent=`Error: ${fmt(Math.abs(v-predicted[i]))}`;top.append(name,err);
+ let small=document.createElement('small');small.textContent=`Valor real: ${v} · Predicción: `;let p=document.createElement('b');p.id=`pred-${i}`;p.textContent=predicted[i];small.append(p);
+ let range=document.createElement('input');range.type='range';range.min=v-8;range.max=v+8;range.step=1;range.value=predicted[i];range.setAttribute('aria-label',`Modificar predicción de observación ${i+1}`);
+ range.addEventListener('input',()=>{predicted[i]=Number(range.value);update()});box.append(top,small,range);controls.append(box);
+})}
+function bars(es,mae){svg.replaceChildren();const l=58,r=690,t=24,b=238,max=16;
+ for(let v=0;v<=16;v+=4){let y=b-v/max*(b-t);node('line',{x1:l,y1:y,x2:r,y2:y,stroke:'#e1eaea','stroke-dasharray':'4 4'});let tx=node('text',{x:l-10,y:y+4,'text-anchor':'end'});tx.textContent=v}
+ node('line',{x1:l,y1:b,x2:r,y2:b,stroke:'#61777a'});
+ let bw=65,gap=53;es.forEach((e,i)=>{let x=l+28+i*(bw+gap),h=e/max*(b-t),y=b-h;node('rect',{x,y,width:bw,height:h,rx:6,class:'bar'});
+ let label=node('text',{x:x+bw/2,y:b+22,'text-anchor':'middle'});label.textContent=`Obs. ${i+1}`;
+ let value=node('text',{x:x+bw/2,y:Math.max(t+12,y-8),'text-anchor':'middle',style:'font-weight:bold;fill:#07545b'});value.textContent=fmt(e)});
+ let my=b-mae/max*(b-t);node('line',{x1:l,y1:my,x2:r,y2:my,class:'meanline'});let tag=node('text',{x:r,y:Math.max(13,my-8),'text-anchor':'end',style:'font-weight:bold;fill:#d16e53'});tag.textContent=`MAE = ${fmt(mae)}`;
+ let axis=node('text',{x:15,y:(t+b)/2,'text-anchor':'middle',transform:`rotate(-90 15 ${(t+b)/2})`});axis.textContent='Error absoluto';
+}
+function update(){let es=errors(),sum=es.reduce((a,b)=>a+b,0),mae=sum/es.length;
+ document.getElementById('mae').textContent=`${fmt(mae)} unidades`;document.getElementById('sum').textContent=`Suma de errores absolutos: ${fmt(sum)} ÷ ${es.length} observaciones`;
+ es.forEach((e,i)=>{document.getElementById(`err-${i}`).textContent=`Error: ${fmt(e)}`;document.getElementById(`pred-${i}`).textContent=predicted[i]});
+ bars(es,mae);document.getElementById('interpretation').textContent=`La suma de los errores absolutos es ${fmt(sum)}. Al dividirla entre ${es.length} observaciones obtenemos un MAE de ${fmt(mae)} unidades. Los errores positivos y negativos no se cancelan: todos aportan su magnitud al promedio.`;
+}
+document.getElementById('increase').addEventListener('click',()=>{let es=errors(),i=es.indexOf(Math.min(...es)),v=actual[i];predicted[i]+=predicted[i]>=v?3:-3;build();update()});
+document.getElementById('reset').addEventListener('click',()=>{predicted=initial.slice();build();update()});
+build();update();
+})();
+</script></body></html>
