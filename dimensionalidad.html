@@ -1,92 +1,343 @@
 <!doctype html>
 <html lang="es">
+
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Laboratorio interactivo: Maldición de la dimensionalidad</title>
-<style>
-:root{--teal:#07545b;--teal2:#0b6b70;--orange:#e47d61;--blue:#1686c4;--green:#36a47b;--bg:#f3f7f7;--ink:#17383b;--muted:#61777a;--line:#d7e3e3}
-*{box-sizing:border-box}body{margin:0;padding:20px;background:var(--bg);font-family:Arial,Helvetica,sans-serif;color:var(--ink)}
-.wrap{max-width:900px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 8px 28px #1233}
-header{background:var(--teal);color:#fff;padding:21px 25px}h1{font-size:clamp(21px,3vw,28px);margin:0}header p{margin:7px 0 0;color:#d9eeee;line-height:1.4}
-main{padding:20px}.intro{line-height:1.5;margin:0 0 15px}
-.controls{display:flex;gap:13px;align-items:center;flex-wrap:wrap;padding:13px;border:1px solid var(--line);border-radius:12px;background:#f8fbfb}
-.control{flex:1;min-width:210px}.control label{font-size:13px;font-weight:bold;display:flex;justify-content:space-between;gap:10px}
-input[type=range]{width:100%;accent-color:var(--teal2);margin:11px 0 2px}
-button{border:0;border-radius:9px;padding:11px 15px;font-weight:bold;cursor:pointer}
-.primary{background:var(--orange);color:white}.secondary{background:#eaf1f1;color:var(--teal);border:1px solid var(--line)}
-.panel{border:1px solid var(--line);border-radius:13px;padding:12px;margin-top:15px;background:#fff}
-.panel h2{font-size:18px;color:var(--teal);margin:3px 4px 5px}
-.sub{font-size:13px;color:var(--muted);margin:0 4px 9px;line-height:1.4}
-canvas{display:block;width:100%;height:auto;border-radius:9px;background:#f7fafb}
-.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:10px 3px 0}
-.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
-.dimension-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-.dimension-list span{font-size:11px;padding:4px 7px;border-radius:6px;background:#e8f0f0;color:#426266}
-.dimension-list span.extra{background:#fff0e9;color:#a45137}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:13px}
-.stat{border:1px solid var(--line);border-radius:10px;padding:11px;background:#f8fbfb}
-.stat small{display:block;color:var(--muted);font-size:11px}.stat b{display:block;color:var(--teal);font-size:20px;margin-top:4px}
-.explain{margin-top:14px;padding:14px;border-radius:12px;background:#edf5f4;border-left:5px solid var(--teal2);line-height:1.5}
-.note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:12px}
-@media(max-width:600px){body{padding:8px}main{padding:13px}.control{min-width:100%}.stats{grid-template-columns:1fr 1fr}}
-</style></head>
-<body><div class="wrap">
-<header><h1>Laboratorio interactivo: Maldición de la dimensionalidad</h1><p>Observa cómo una nube de datos pasa de una vista 3D a una proyección 2D.</p></header>
-<main>
-<p class="intro">Ajusta el número de atributos y pulsa «Proyectar a 2D». Los mismos puntos se desplazarán dentro de una única gráfica para mostrar la transformación. Puedes volver a la vista 3D cuando quieras.</p>
-<div class="controls">
- <div class="control"><label for="dims"><span>Número de dimensiones del conjunto</span><strong id="dimval">8 atributos</strong></label><input id="dims" type="range" min="3" max="20" value="8" step="1"><div class="dimension-list" id="dimension-list"></div></div>
- <button class="primary" id="project">▶ Proyectar a 2D</button>
- <button class="secondary" id="reset">Restablecer</button>
-</div>
-<section class="panel">
- <h2 id="viewtitle">Vista 3D: espacio de alta dimensionalidad</h2>
- <p class="sub" id="viewsub">Se muestran tres atributos seleccionados del conjunto completo. Los demás atributos no pueden visualizarse directamente en estos tres ejes.</p>
- <canvas id="plot" width="820" height="470" aria-label="Gráfica interactiva única: los puntos se transforman de una vista tridimensional a una proyección bidimensional"></canvas>
- <div class="legend"><span><i class="dot" style="background:#1686c4"></i>Grupo A</span><span><i class="dot" style="background:#e47d61"></i>Grupo B</span><span><i class="dot" style="background:#36a47b"></i>Grupo C</span></div>
-</section>
-<div class="stats">
- <div class="stat"><small>Atributos del conjunto</small><b id="statdims">8</b></div>
- <div class="stat"><small>Ejes visibles en 3D</small><b>3</b></div>
- <div class="stat"><small>Componentes en 2D</small><b>2</b></div>
-</div>
-<div class="explain" aria-live="polite"><b id="exptitle">¿Qué debes observar?</b><div id="explanation">La vista 3D solo permite observar tres atributos a la vez. Los demás forman parte del conjunto, aunque no aparezcan como ejes en esta representación.</div></div>
-<p class="note"><b>Nota metodológica:</b> datos simulados con fines didácticos. La animación desplaza los mismos puntos desde una representación 3D hacia una proyección 2D esquemática; no ejecuta un algoritmo PCA real. En un análisis real, PCA calcula las componentes a partir de los datos. La proyección facilita la visualización, pero puede perder información.</p>
-</main></div>
-<script>
-(()=>{
-const canvas=document.getElementById('plot'),ctx=canvas.getContext('2d');
-const colors=['#1686c4','#e47d61','#36a47b'];
-let dims=8,flat=0,raf=null;
-let seed=92831;function rand(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296}
-function gauss(){return Math.sqrt(-2*Math.log(Math.max(rand(),1e-8)))*Math.cos(2*Math.PI*rand())}
-const points=[];
-for(let i=0;i<90;i++){let group=i%3,cx=[-.68,.68,0][group],cy=[-.36,-.28,.7][group],u=cx+gauss()*.23,v=cy+gauss()*.23,w=(u+v)*.45+gauss()*.28;points.push({u,v,w,group})}
-function map3(p){let rot=.48,ax=p.u*Math.cos(rot)-p.v*Math.sin(rot),by=p.u*Math.sin(rot)+p.v*Math.cos(rot),zz=p.w*Math.cos(.45)-by*Math.sin(.45),yy=p.w*Math.sin(.45)+by*Math.cos(.45),k=1/(1.9-zz*.22);return{x:410+ax*190*k,y:220-yy*175*k}}
-function map2(p){return{x:105+(p.u+1.35)/2.7*610,y:385-(p.v+1.2)/2.4*300}}
-function mix(a,b,t){return a+(b-a)*t}
-function line(x1,y1,x2,y2,color='#82999c',width=1.5,dash=[]){ctx.beginPath();ctx.setLineDash(dash);ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();ctx.setLineDash([])}
-function draw(t=flat){
- ctx.clearRect(0,0,820,470);ctx.fillStyle='#f7fafb';ctx.fillRect(0,0,820,470);
- if(t<.98){
-  let o={x:410,y:220};[[1.45,0,0,'Atributo 1'],[0,1.45,0,'Atributo 2'],[0,0,1.45,'Atributo 3']].forEach(([x,y,z,label])=>{let q=map3({u:x,v:y,w:z});line(o.x,o.y,q.x,q.y,'#82999c',2);ctx.fillStyle='#47666a';ctx.font='15px Arial';ctx.fillText(label,q.x+(x>0?7:-15),q.y+(y>0?17:-8))});
- }
- if(t>.02){
-  ctx.globalAlpha=t;let l=105,r=715,top=85,b=385;ctx.strokeStyle='#d7e3e3';ctx.lineWidth=1;
-  for(let i=0;i<=4;i++){let x=l+(r-l)*i/4,y=top+(b-top)*i/4;line(x,top,x,b,'#d7e3e3',1);line(l,y,r,y,'#d7e3e3',1)}
-  line(l,b,r,b,'#82999c',1.5);line(l,top,l,b,'#82999c',1.5);
-  ctx.fillStyle='#47666a';ctx.font='14px Arial';ctx.fillText('Componente 1',370,425);ctx.save();ctx.translate(45,260);ctx.rotate(-Math.PI/2);ctx.fillText('Componente 2',0,0);ctx.restore();ctx.globalAlpha=1;
- }
- points.forEach(p=>{let a=map3(p),b=map2(p),x=mix(a.x,b.x,t),y=mix(a.y,b.y,t);ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);ctx.fillStyle=colors[p.group];ctx.globalAlpha=.88;ctx.fill();ctx.globalAlpha=1});
- ctx.fillStyle='#61777a';ctx.font='13px Arial';ctx.fillText(t>.5?'Proyección bidimensional · dos componentes':'Vista tridimensional · tres atributos seleccionados',18,448);
- if(t>.5){ctx.fillStyle='#07545b';ctx.font='bold 15px Arial';ctx.fillText('PROYECCIÓN 2D',650,35)}
-}
-function dimensions(){document.getElementById('dimval').textContent=dims+' atributos';document.getElementById('statdims').textContent=dims;let list=document.getElementById('dimension-list');list.replaceChildren();for(let i=1;i<=dims;i++){let s=document.createElement('span');s.textContent='A'+i;if(i>3)s.className='extra';list.append(s)}}
-function explain(){let projected=flat>.5;document.getElementById('viewtitle').textContent=projected?'Vista 2D: proyección de los datos':'Vista 3D: espacio de alta dimensionalidad';document.getElementById('viewsub').textContent=projected?'Los mismos puntos se representan mediante dos componentes para facilitar la observación de agrupaciones.':'Se muestran tres atributos seleccionados del conjunto completo. Los demás atributos no pueden visualizarse directamente en estos tres ejes.';document.getElementById('exptitle').textContent=projected?'¿Qué ocurrió con los puntos?':'¿Qué debes observar?';document.getElementById('explanation').textContent=projected?`Los mismos puntos se desplazaron hacia una representación con dos componentes. Esto facilita observar agrupaciones, pero resume la información: no todos los detalles de los ${dims} atributos originales pueden conservarse en dos dimensiones.`:`El conjunto contiene ${dims} atributos. La vista tridimensional solo permite visualizar tres de ellos como ejes; los ${Math.max(0,dims-3)} restantes no aparecen directamente en esta representación. Al aumentar las dimensiones, el espacio de análisis se vuelve más complejo.`}
-function animate(to){if(raf)cancelAnimationFrame(raf);let from=flat,start=null;function step(ts){if(!start)start=ts;let k=Math.min(1,(ts-start)/1300),ease=k*k*(3-2*k);flat=mix(from,to,ease);draw();if(k<1)raf=requestAnimationFrame(step);else{flat=to;raf=null;explain()}}raf=requestAnimationFrame(step)}
-document.getElementById('dims').addEventListener('input',e=>{dims=Number(e.target.value);dimensions();explain()});
-document.getElementById('project').addEventListener('click',()=>{let to=flat<.5?1:0;document.getElementById('project').textContent=to?'↩ Volver a vista 3D':'▶ Proyectar a 2D';animate(to)});
-document.getElementById('reset').addEventListener('click',()=>{dims=8;flat=0;document.getElementById('dims').value=8;document.getElementById('project').textContent='▶ Proyectar a 2D';dimensions();explain();draw()});
-dimensions();explain();draw();
-})();
-</script></body></html>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Laboratorio PCA</title>
+    <style>
+        :root {
+            --t: #07545b;
+            --o: #e47d61;
+            --b: #1686c4;
+            --g: #36a47b;
+            --bg: #f3f7f7;
+            --line: #d7e3e3
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            padding: 18px;
+            background: var(--bg);
+            font-family: Arial, sans-serif;
+            color: #17383b
+        }
+
+        .wrap {
+            max-width: 940px;
+            margin: auto;
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 6px 24px #1233
+        }
+
+        header {
+            background: var(--t);
+            color: white;
+            padding: 20px
+        }
+
+        h1 {
+            font-size: 25px;
+            margin: 0
+        }
+
+        header p {
+            color: #d9eeee;
+            margin: 7px 0 0
+        }
+
+        main {
+            padding: 18px
+        }
+
+        .controls,
+        .kpi,
+        .panel,
+        .variance,
+        .explain {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #f8fbfb;
+            padding: 13px
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap
+        }
+
+        .control {
+            flex: 1;
+            min-width: 220px
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            font-size: 13px
+        }
+
+        input {
+            width: 100%;
+            accent-color: #0b6b70;
+            margin: 12px 0 4px
+        }
+
+        button {
+            padding: 11px 14px;
+            border: 0;
+            border-radius: 9px;
+            font-weight: bold;
+            cursor: pointer
+        }
+
+        .primary {
+            background: var(--o);
+            color: white
+        }
+
+        .secondary {
+            background: #eaf1f1;
+            color: var(--t);
+            border: 1px solid var(--line)
+        }
+
+        .dims {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px
+        }
+
+        .dims span {
+            font-size: 11px;
+            padding: 4px 6px;
+            background: #e8f0f0;
+            border-radius: 5px
+        }
+
+        .dims .extra {
+            background: #fff0e9;
+            color: #a45137
+        }
+
+        .kpis {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 9px;
+            margin-top: 12px
+        }
+
+        .kpi {
+            background: #f8fbfb
+        }
+
+        .kpi small {
+            display: block;
+            color: #61777a
+        }
+
+        .kpi b {
+            display: block;
+            color: var(--t);
+            font-size: 21px;
+            margin-top: 4px
+        }
+
+        .panel {
+            margin-top: 14px;
+            background: white
+        }
+
+        .panel h2 {
+            font-size: 18px;
+            color: var(--t);
+            margin: 2px 0 5px
+        }
+
+        .sub {
+            font-size: 13px;
+            color: #61777a;
+            margin: 0 0 9px
+        }
+
+        canvas {
+            width: 100%;
+            height: auto;
+            display: block;
+            background: #f7fafb;
+            border-radius: 8px
+        }
+
+        .legend {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            font-size: 12px;
+            color: #61777a;
+            margin-top: 8px
+        }
+
+        .dot {
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            margin-right: 4px
+        }
+
+        .variance {
+            margin-top: 13px;
+            background: #fbfdfd
+        }
+
+        .vhead {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            font-weight: bold;
+            font-size: 13px
+        }
+
+        .track {
+            height: 13px;
+            background: #e6eeee;
+            border-radius: 20px;
+            margin: 10px 0;
+            overflow: hidden
+        }
+
+        .fill {
+            height: 100%;
+            background: #0b6b70;
+            width: 0;
+            transition: width .2s
+        }
+
+        .vfoot {
+            font-size: 12px;
+            color: #61777a;
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap
+        }
+
+        .explain {
+            margin-top: 13px;
+            background: #edf5f4;
+            border-left: 5px solid #0b6b70;
+            line-height: 1.5
+        }
+
+        .note {
+            font-size: 12px;
+            line-height: 1.5;
+            color: #61777a;
+            margin-top: 12px
+        }
+
+        @media(max-width:600px) {
+            body {
+                padding: 7px
+            }
+
+            main {
+                padding: 12px
+            }
+
+            .kpis {
+                grid-template-columns: 1fr 1fr
+            }
+
+            .control {
+                min-width: 100%
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <header>
+            <h1>Laboratorio interactivo: Maldición de la dimensionalidad</h1>
+            <p>Explora cómo cambian los datos al aumentar sus atributos y cómo PCA resume la información.</p>
+        </header>
+        <main>
+            <p>Ajusta el número de atributos. La cantidad de registros permanece constante; cada registro tendrá más o
+                menos características. Observa cómo cambian los datos y qué porcentaje de variabilidad conservan los dos
+                primeros componentes principales.</p>
+            <div class="controls">
+                <div class="control"><label for="dims"><span>Número de atributos</span><strong id="dimval">8
+                            atributos</strong></label><input id="dims" type="range" min="3" max="20" value="8">
+                    <div class="dims" id="dimlist"></div>
+                </div><button class="primary" id="project">▶ Proyectar a 2D</button><button class="secondary"
+                    id="reset">Restablecer</button>
+            </div>
+            <div class="kpis">
+                <div class="kpi"><small>Registros (puntos)</small><b>90</b></div>
+                <div class="kpi"><small>Atributos</small><b id="kdim">8</b></div>
+                <div class="kpi"><small>Grupos</small><b>3 × 30</b></div>
+            </div>
+            <section class="panel">
+                <h2 id="title">Vista 3D: tres componentes principales</h2>
+                <p class="sub" id="subtitle">Se muestran los tres primeros componentes calculados a partir de todos los
+                    atributos.</p><canvas id="plot" width="820" height="450"></canvas>
+                <div class="legend"><span><i class="dot" style="background:var(--b)"></i>Grupo A · 30</span><span><i
+                            class="dot" style="background:var(--o)"></i>Grupo B · 30</span><span><i class="dot"
+                            style="background:var(--g)"></i>Grupo C · 30</span></div>
+            </section>
+            <section class="variance">
+                <div class="vhead"><span>Variabilidad conservada por los 2 primeros componentes</span><strong
+                        id="pct">—</strong></div>
+                <div class="track">
+                    <div class="fill" id="fill"></div>
+                </div>
+                <div class="vfoot"><span id="retained">Porcentaje explicado por CP1 + CP2.</span><span
+                        id="lost">—</span></div>
+            </section>
+            <div class="explain"><b id="exptitle">¿Qué debes observar?</b>
+                <div id="explanation"></div>
+            </div>
+            <p class="note"><b>Nota metodológica:</b> En cada cambio de atributos se genera una nueva
+                matriz y se recalcula PCA mediante descomposición de la matriz de covarianza. El porcentaje mostrado es
+                (autovalor 1 + autovalor 2) dividido entre la suma de todos los autovalores. Es la varianza explicada
+                por los dos primeros componentes, no una medida completa de calidad predictiva.</p>
+        </main>
+    </div>
+    <script>
+        (() => {
+            const cv = document.getElementById('plot'), ctx = cv.getContext('2d'), cols = ['#1686c4', '#e47d61', '#36a47b']; let d = 8, mode = 3, t = 0, pts = [], ratio = 0, raf;
+            const N = 90;
+            function rng(seed) {return () => {seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296}}
+            function norm(r) {return Math.sqrt(-2 * Math.log(Math.max(r(), 1e-9))) * Math.cos(2 * Math.PI * r())}
+            function data(n) {let r = rng(8137 + n * 997), a = []; for (let i = 0; i < N; i++) {let g = i % 3, c = [[-1.5, -.35], [1.45, -.25], [0, 1.35]][g], u = c[0] + norm(r) * .42, v = c[1] + norm(r) * .42, row = []; for (let j = 0; j < n; j++) {let z = (j + 1) * .73; row.push(u * Math.cos(z) + v * Math.sin(z) + norm(r) * (.32 + .055 * n))} a.push({x: row, g})} return a}
+            function eigen(M) {let n = M.length, A = M.map(x => x.slice()), V = Array.from({length: n}, (_, i) => Array.from({length: n}, (_, j) => i === j ? 1 : 0)); for (let it = 0; it < Math.max(100, n * n * 35); it++) {let p = 0, q = 1, m = 0; for (let i = 0; i < n; i++)for (let j = i + 1; j < n; j++)if (Math.abs(A[i][j]) > m) {m = Math.abs(A[i][j]); p = i; q = j} if (m < 1e-10) break; let ph = .5 * Math.atan2(2 * A[p][q], A[q][q] - A[p][p]), c = Math.cos(ph), s = Math.sin(ph), pp = c * c * A[p][p] - 2 * s * c * A[p][q] + s * s * A[q][q], qq = s * s * A[p][p] + 2 * s * c * A[p][q] + c * c * A[q][q]; for (let k = 0; k < n; k++)if (k !== p && k !== q) {let x = A[k][p], y = A[k][q]; A[k][p] = A[p][k] = c * x - s * y; A[k][q] = A[q][k] = s * x + c * y} A[p][p] = pp; A[q][q] = qq; A[p][q] = A[q][p] = 0; for (let k = 0; k < n; k++) {let x = V[k][p], y = V[k][q]; V[k][p] = c * x - s * y; V[k][q] = s * x + c * y} } return Array.from({length: n}, (_, i) => ({v: A[i][i], vec: V.map(r => r[i])})).sort((a, b) => b.v - a.v)}
+            function pca(rows, n) {let mu = Array(n).fill(0); rows.forEach(r => r.x.forEach((v, j) => mu[j] += v / N)); let X = rows.map(r => r.x.map((v, j) => v - mu[j])), C = Array.from({length: n}, () => Array(n).fill(0)); X.forEach(row => {for (let i = 0; i < n; i++)for (let j = i; j < n; j++)C[i][j] += row[i] * row[j] / (N - 1)}); for (let i = 0; i < n; i++)for (let j = 0; j < i; j++)C[i][j] = C[j][i]; let ev = eigen(C), vec = ev.slice(0, 3).map(e => e.vec), out = X.map((row, i) => ({g: rows[i].g, c: vec.map(v => row.reduce((s, x, j) => s + x * v[j], 0))})); let sc = Math.max(...out.flatMap(p => p.c.map(Math.abs)), .001); out.forEach(p => p.c = p.c.map(v => v / sc)); ratio = (Math.max(0, ev[0].v) + Math.max(0, ev[1].v)) / ev.reduce((s, e) => s + Math.max(0, e.v), 0); pts = out}
+            function p3(p) {let [x, y, z] = p.c, rx = x * .82 - y * .57, ry = x * .57 + y * .82, yy = ry * .89 - z * .45, zz = ry * .45 + z * .89, k = 1 / (1.65 - zz * .22); return {x: 410 + rx * 210 * k, y: 215 - yy * 175 * k}}
+            function p2(p) {return {x: 410 + p.c[0] * 270, y: 215 - p.c[1] * 175}}
+            function line(a, b, c, e, col = '#82999c', w = 1) {ctx.beginPath(); ctx.moveTo(a, b); ctx.lineTo(c, e); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.stroke()}
+            function draw() {ctx.clearRect(0, 0, 820, 450); ctx.fillStyle = '#f7fafb'; ctx.fillRect(0, 0, 820, 450); if (t < .98) {let o = {x: 410, y: 215};[[.95, 0, 0, 'CP 1'], [0, .95, 0, 'CP 2'], [0, 0, .95, 'CP 3']].forEach(([x, y, z, l]) => {let q = p3({c: [x, y, z]}); line(o.x, o.y, q.x, q.y); ctx.fillStyle = '#47666a'; ctx.font = '14px Arial'; ctx.fillText(l, q.x + 5, q.y - 6)})} if (t > .02) {let l = 130, r = 690, top = 70, b = 365; for (let i = 0; i <= 4; i++) {let x = l + (r - l) * i / 4, y = top + (b - top) * i / 4; line(x, top, x, b, '#d7e3e3'); line(l, y, r, y, '#d7e3e3')} line(l, b, r, b); line(l, top, l, b); ctx.fillStyle = '#47666a'; ctx.font = '14px Arial'; ctx.fillText('Componente 1', 360, 405); ctx.save(); ctx.translate(65, 240); ctx.rotate(-Math.PI / 2); ctx.fillText('Componente 2', 0, 0); ctx.restore()} pts.forEach(p => {let a = p3(p), b = p2(p), x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t; ctx.beginPath(); ctx.arc(x, y, 4.7, 0, 7); ctx.fillStyle = cols[p.g]; ctx.fill()}); ctx.fillStyle = '#61777a'; ctx.font = '13px Arial'; ctx.fillText(mode === 3 ? 'Vista PCA 3D · CP1, CP2 y CP3' : 'Proyección PCA 2D · CP1 y CP2', 18, 435)}
+            function labels() {document.getElementById('dimval').textContent = d + ' atributos'; document.getElementById('kdim').textContent = d; let el = document.getElementById('dimlist'); el.replaceChildren(); for (let i = 1; i <= d; i++) {let s = document.createElement('span'); s.textContent = 'A' + i; if (i > 3) s.className = 'extra'; el.append(s)} }
+            function info() {let pct = ratio * 100; document.getElementById('pct').textContent = pct.toFixed(1).replace('.', ',') + ' %'; document.getElementById('fill').style.width = Math.max(0, Math.min(100, pct)) + '%'; document.getElementById('retained').textContent = 'Los dos primeros componentes conservan ' + pct.toFixed(1).replace('.', ',') + ' % de la variabilidad.'; document.getElementById('lost').textContent = (100 - pct).toFixed(1).replace('.', ',') + ' % queda en otros componentes.'; document.getElementById('title').textContent = mode === 3 ? 'Vista 3D: tres componentes principales' : 'Vista 2D: dos componentes principales'; document.getElementById('subtitle').textContent = 'PCA se recalculó con ' + d + ' atributos; se muestran ' + mode + ' componentes.'; document.getElementById('exptitle').textContent = mode === 3 ? '¿Qué debes observar?' : '¿Qué significa el porcentaje?'; document.getElementById('explanation').textContent = mode === 3 ? 'Los 90 registros permanecen constantes (30 por grupo). Cada registro tiene ' + d + ' atributos. PCA combina esos atributos para obtener nuevos componentes.' : 'Los mismos 90 registros se muestran con los dos primeros componentes. Estos conservan ' + pct.toFixed(1).replace('.', ',') + ' % de la variabilidad total. El porcentaje restante está en otros componentes que no aparecen en esta vista.'}
+            function rebuild() {pca(data(d), d); labels(); info(); draw()}
+            function animate(to) {if (raf) cancelAnimationFrame(raf); let from = t, start; function step(now) {if (!start) start = now; let k = Math.min(1, (now - start) / 1000), e = k * k * (3 - 2 * k); t = from + (to - from) * e; draw(); if (k < 1) raf = requestAnimationFrame(step); else {t = to; raf = null; draw()} } raf = requestAnimationFrame(step)}
+            document.getElementById('dims').addEventListener('input', e => {d = +e.target.value; rebuild()});
+            document.getElementById('project').addEventListener('click', () => {mode = mode === 3 ? 2 : 3; document.getElementById('project').textContent = mode === 2 ? '↩ Volver a vista 3D' : '▶ Proyectar a 2D'; info(); animate(mode === 2 ? 1 : 0)});
+            document.getElementById('reset').addEventListener('click', () => {d = 8; mode = 3; t = 0; document.getElementById('dims').value = 8; document.getElementById('project').textContent = '▶ Proyectar a 2D'; rebuild()});
+            rebuild();
+        })();
+    </script>
+    </main>
+    </div>
+</body>
+
+</html>
